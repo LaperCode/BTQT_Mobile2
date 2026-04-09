@@ -25,16 +25,18 @@ public class HistoryFragment extends Fragment {
     private DatabaseHelper myDb;
     private ArrayList<HistoryRecord> historyList;
 
-    private static class HistoryRecord {
-        String id;
-        String text;
+    private static class HistoryRecord { // Lớp lưu trữ bản ghi lịch sử
+        String id; // ID của bản ghi trong DB
+        String text; // Nội dung hiển thị
 
+        // Constructor
         HistoryRecord(String id, String text) {
             this.id = id;
             this.text = text;
         }
     }
 
+    // Adapter cho ListView
     private class HistoryAdapter extends BaseAdapter {
         @Override
         public int getCount() {
@@ -47,10 +49,12 @@ public class HistoryFragment extends Fragment {
         }
 
         @Override
-        public long getItemId(int position) {
+        public long getItemId(int position)
+        {
             return position;
         }
 
+        // Hiển thị mỗi bản ghi trong ListView
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             if (convertView == null) {
@@ -77,11 +81,11 @@ public class HistoryFragment extends Fragment {
                         .setNegativeButton("Hủy", null)
                         .show();
             });
-
             return convertView;
         }
     }
 
+    // Tạo giao diện fragment_history
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,

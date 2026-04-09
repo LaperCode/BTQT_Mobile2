@@ -51,8 +51,7 @@ public class MainActivity extends AppCompatActivity {
 
     private double currentGoldPriceOunceUSD = 0.0;
     private final double USD_TO_VND_RATE = 25000.0;
-    // GoldAPI.io
-    private static final String API_KEY = "goldapi-4g38l9dsmn86ozr1-io";
+    private static final String API_KEY = "a4f1eccb8e33176d294b9273afa45521";
     private final ArrayList<Double> last7DaysOunceUsd = new ArrayList<>();
     private final ArrayList<String> last7DaysLabels = new ArrayList<>();
 
@@ -223,14 +222,14 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<Entry> entries = new ArrayList<>();
         ArrayList<String> labels = new ArrayList<>();
 
-        if (last7DaysOunceUsd.size() == 7) {
+        if (last7DaysOunceUsd.size() == 7) { // Nếu có dữ liệu lịch sử
             for (int i = 0; i < last7DaysOunceUsd.size(); i++) {
                 double ounceUsd = last7DaysOunceUsd.get(i) * premiumMultiplier;
                 double vndPerLuong = GoldCalculator.convertOunceUsdToLuongVnd(ounceUsd, USD_TO_VND_RATE);
                 entries.add(new Entry(i, (float) vndPerLuong));
                 labels.add(last7DaysLabels.get(i));
             }
-        } else if (currentGoldPriceOunceUSD > 0) {
+        } else if (currentGoldPriceOunceUSD > 0) { // Nếu chưa có dữ liệu lịch sử
             double currentPriceVNDPerLuong = GoldCalculator
                     .convertOunceUsdToLuongVnd(currentGoldPriceOunceUSD * premiumMultiplier, USD_TO_VND_RATE);
             entries.add(new Entry(0, (float) (currentPriceVNDPerLuong * 0.96)));
@@ -249,6 +248,7 @@ public class MainActivity extends AppCompatActivity {
             labels.add("Hôm nay");
         }
 
+        // Vẽ biểu đồ
         LineDataSet dataSet = new LineDataSet(entries, "Giá " + goldType + " (VND/Lượng)");
         dataSet.setColor(Color.parseColor("#FF9800"));
         dataSet.setCircleColor(Color.parseColor("#E65100"));
@@ -256,6 +256,7 @@ public class MainActivity extends AppCompatActivity {
         dataSet.setCircleRadius(5f);
         dataSet.setValueTextSize(10f);
 
+        // Set up biểu đồ
         LineData lineData = new LineData(dataSet);
         lineChart.setData(lineData);
 
@@ -273,13 +274,13 @@ public class MainActivity extends AppCompatActivity {
             float lastVal = entries.get(entries.size() - 1).getY();
             if (lastVal > firstVal) {
                 txtAdvice.setText("Giá đang tăng trong 7 ngày qua.");
-                txtAdvice.setTextColor(Color.parseColor("#4CAF50")); // Green
+                txtAdvice.setTextColor(Color.parseColor("#4CAF50")); //xanh la
             } else if (lastVal < firstVal) {
                 txtAdvice.setText("Giá đang giảm trong 7 ngày qua.");
-                txtAdvice.setTextColor(Color.parseColor("#F44336")); // Red
+                txtAdvice.setTextColor(Color.parseColor("#F44336")); //Do
             } else {
                 txtAdvice.setText("Giá đang ổn định.");
-                txtAdvice.setTextColor(Color.parseColor("#2196F3")); // Blue
+                txtAdvice.setTextColor(Color.parseColor("#2196F3")); //xanh duong
             }
         }
     }
@@ -287,13 +288,17 @@ public class MainActivity extends AppCompatActivity {
     private class FetchGoldPriceTask extends AsyncTask<Void, Void, String> {
         @Override
         protected String doInBackground(Void... voids) {
-            String urlString = "https://www.goldapi.io/api/XAU/USD";
+            String urlString = "https://api.metalpriceapi.com/v1/latest?api_key=" + API_KEY + "&base=USD&currencies=XAU";
             StringBuilder result = new StringBuilder();
             try {
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("x-access-token", API_KEY);
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode != 200) {
+                    return "ERROR:" + responseCode;
+                }
 
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 String line;
@@ -303,7 +308,7 @@ public class MainActivity extends AppCompatActivity {
                 reader.close();
                 return result.toString();
             } catch (Exception e) {
-                return null;
+                return "ERROR:" + e.getMessage();
             }
         }
 
@@ -311,12 +316,21 @@ public class MainActivity extends AppCompatActivity {
         protected void onPostExecute(String s) {
             try {
                 if (s == null)
-                    throw new Exception("Lỗi mạng");
+                    throw new Exception("Lỗi mạng không xác định");
+                if (s.startsWith("ERROR:")) {
+                    throw new Exception(s.replace("ERROR:", ""));
+                }
 
                 JSONObject jsonObject = new JSONObject(s);
+                if (!jsonObject.has("success") || !jsonObject.getBoolean("success")) {
+                    throw new Exception("Lỗi từ API Server");
+                }
 
-                double price = jsonObject.getDouble("price");
-                currentGoldPriceOunceUSD = price;
+                JSONObject rates = jsonObject.getJSONObject("rates");
+                double xauRate = rates.getDouble("XAU");
+                
+                // xauRate là tỉ lệ vàng 1 USD mua được, nên cần nghịch đảo để lấy giá 1 Ounce = USD
+                currentGoldPriceOunceUSD = 1.0 / xauRate;
 
                 if (txtUpdateTime != null) {
                     String time = new SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault()).format(new Date());
@@ -324,43 +338,40 @@ public class MainActivity extends AppCompatActivity {
                 }
 
             } catch (Exception e) {
-                // BÍ KÍP PHÒNG THÂN: NẾU RỚT MẠNG HOẶC HẾT LƯỢT API, DÙNG GIẢ LẬP ĐỂ NỘP BÀI
-                currentGoldPriceOunceUSD = 2150.50; // Giá Ounce giả định
+                currentGoldPriceOunceUSD = 0.0;
                 if (txtUpdateTime != null) {
-                    txtUpdateTime.setText("⚠️ Đang dùng dữ liệu Offline (Mất kết nối/API lỗi)");
+                    txtUpdateTime.setText("Lỗi API: " + e.getMessage());
                 }
-            }
-
-            // ================= TÍNH TOÁN & ĐỔ DỮ LIỆU VÀO BẢNG (Chạy cho cả Real lẫn Fake)
-            // =================
-            if (currentGoldPriceOunceUSD > 0) {
+                Toast.makeText(MainActivity.this, "Lỗi API: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                return; // Ngừng tiếp tục khi có lỗi, bỏ qua code đổ dữ liệu
+            }            if (currentGoldPriceOunceUSD > 0) {
                 double baseVNDPerLuong = GoldCalculator.convertOunceUsdToLuongVnd(currentGoldPriceOunceUSD,
                         USD_TO_VND_RATE);
                 DecimalFormat formatter = new DecimalFormat("#,###");
 
-                // 1. Vàng Thế Giới
+                //Vàng Thế Giới
                 double sellTheGioi = baseVNDPerLuong;
                 double buyTheGioi = sellTheGioi - 500000;
 
-                // 2. SJC đắt hơn gốc 25%. Bán ra đắt hơn Mua vào 2,000,000đ
+                // SJC đắt hơn gốc 25%. Bán ra đắt hơn Mua vào 2,000,000đ
                 double sellSJC = baseVNDPerLuong * 1.25;
                 double buySJC = sellSJC - 2000000;
 
-                // 3. PNJ đắt hơn gốc 15%. Bán ra đắt hơn Mua vào 1,500,000đ
+                // PNJ đắt hơn gốc 15%. Bán ra đắt hơn Mua vào 1,500,000đ
                 double sellPNJ = baseVNDPerLuong * 1.15;
                 double buyPNJ = sellPNJ - 1500000;
 
-                // 4. Nhẫn đắt hơn gốc 10%. Bán ra đắt hơn Mua vào 1,000,000đ
+                // Nhẫn đắt hơn gốc 10%. Bán ra đắt hơn Mua vào 1,000,000đ
                 double sellNhan = baseVNDPerLuong * 1.10;
                 double buyNhan = sellNhan - 1000000;
 
-                // 24K and 18K logic
+                //24K and 18K logic
                 double sell24k = baseVNDPerLuong * 1.05; // 24k Premium from GoldCalculator
                 double buy24k = sell24k - 800000;
                 double sell18k = baseVNDPerLuong * 0.75; // 18k Premium from GoldCalculator
                 double buy18k = sell18k - 600000;
 
-                // Đổ dữ liệu an toàn (kiểm tra null phòng trường hợp bạn quên ánh xạ View)
+                // Đổ dữ liệu an toàn và kiểm tra null phòng trường hợp quên ánh xạ View
                 if (txtBuySJC != null)
                     txtBuySJC.setText(formatter.format(buySJC));
                 if (txtSellSJC != null)
@@ -397,15 +408,14 @@ public class MainActivity extends AppCompatActivity {
 
             for (int i = 0; i < 6; i++) {
                 Date date = calendar.getTime();
-                String dateStr = new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(date);
-                String displayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date);
+                String dateStr = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date);
+                String displayDate = dateStr;
 
-                String urlString = "https://www.goldapi.io/api/XAU/USD/" + dateStr;
+                String urlString = "https://api.metalpriceapi.com/v1/" + dateStr + "?api_key=" + API_KEY + "&base=USD&currencies=XAU";
                 try {
                     URL url = new URL(urlString);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
-                    conn.setRequestProperty("x-access-token", API_KEY);
 
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder result = new StringBuilder();
@@ -416,13 +426,11 @@ public class MainActivity extends AppCompatActivity {
                     reader.close();
 
                     JSONObject jsonObject = new JSONObject(result.toString());
-                    if (jsonObject.has("price")) {
-                        double price = jsonObject.getDouble("price");
-                        history.put(displayDate, price);
+                    if (jsonObject.has("success") && jsonObject.getBoolean("success")) {
+                        double rate = jsonObject.getJSONObject("rates").getDouble("XAU");
+                        history.put(displayDate, 1.0 / rate);
                     }
-                } catch (Exception e) {
-                    // Ignore missing dates for now
-                }
+                } catch (Exception e) {}
                 calendar.add(Calendar.DAY_OF_MONTH, 1);
             }
 
