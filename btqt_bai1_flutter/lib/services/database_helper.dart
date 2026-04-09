@@ -15,18 +15,21 @@ class DatabaseHelper {
 
   bool get _isWeb => kIsWeb;
 
+// Get the database instance, initializing it if necessary
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB('gold_tracker.db');
     return _database!;
   }
 
+// Initialize the database
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
     return await openDatabase(path, version: 1, onCreate: _createDB);
   }
 
+// Create the history table
   Future<void> _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE history (
@@ -41,6 +44,7 @@ class DatabaseHelper {
     ''');
   }
 
+// Insert a new history entry and return its ID
   Future<int> insertHistory(HistoryEntry entry) async {
     if (_isWeb) {
       _memoryId++;
@@ -62,6 +66,7 @@ class DatabaseHelper {
     return await db.insert('history', entry.toMap());
   }
 
+// Retrieve all history entries, ordered by most recent first
   Future<List<HistoryEntry>> getHistory() async {
     if (_isWeb) {
       return List.from(_memoryHistory);
@@ -71,6 +76,7 @@ class DatabaseHelper {
     return maps.map((map) => HistoryEntry.fromMap(map)).toList();
   }
 
+// Delete a specific history entry by ID
   Future<int> deleteHistory(int id) async {
     if (_isWeb) {
       _memoryHistory.removeWhere((e) => e.id == id);
@@ -80,6 +86,7 @@ class DatabaseHelper {
     return await db.delete('history', where: 'id = ?', whereArgs: [id]);
   }
 
+// Clear all history entries
   Future<int> clearHistory() async {
     if (_isWeb) {
       _memoryHistory.clear();

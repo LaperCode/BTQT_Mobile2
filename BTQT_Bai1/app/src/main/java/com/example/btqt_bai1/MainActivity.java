@@ -51,13 +51,16 @@ public class MainActivity extends AppCompatActivity {
 
     private double currentGoldPriceOunceUSD = 0.0;
     private final double USD_TO_VND_RATE = 25000.0;
-    private static final String API_KEY = "a4f1eccb8e33176d294b9273afa45521";
+    // GoldAPI.io
+    private static final String API_KEY = "goldapi-4g38l9dsmn86ozr1-io";
     private final ArrayList<Double> last7DaysOunceUsd = new ArrayList<>();
     private final ArrayList<String> last7DaysLabels = new ArrayList<>();
 
     DatabaseHelper myDb;
     private TextView txtBuySJC, txtSellSJC, txtBuyPNJ, txtSellPNJ, txtBuyNhan, txtSellNhan, txtUpdateTime;
     private TextView txtBuyTheGioi, txtSellTheGioi;
+    private TextView txtAdvice;
+    private TextView txtCurrentPrice;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,11 +85,12 @@ public class MainActivity extends AppCompatActivity {
         txtUpdateTime = findViewById(R.id.txtUpdateTime);
         txtBuyTheGioi = findViewById(R.id.txtBuyTheGioi);
         txtSellTheGioi = findViewById(R.id.txtSellTheGioi);
+        txtAdvice = findViewById(R.id.txtAdvice);
 
         myDb = new DatabaseHelper(this);
 
         // YÊU CẦU 1: Hỗ trợ nhiều loại vàng
-        String[] goldTypes = { "Vàng SJC", "Vàng PNJ", "Vàng nhẫn 9999", "Vàng Thế Giới" };
+        String[] goldTypes = { "Vàng SJC", "Vàng PNJ", "Vàng nhẫn 9999", "Vàng 24k", "Vàng 18k", "Vàng Thế Giới" };
         ArrayAdapter<String> typeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
                 goldTypes);
         spinnerGoldType.setAdapter(typeAdapter);
@@ -131,15 +135,16 @@ public class MainActivity extends AppCompatActivity {
             String amount = edtAmount.getText().toString();
             String result = txtResult.getText().toString();
             String goldType = spinnerGoldType.getSelectedItem().toString();
+            String unit = spinnerUnit.getSelectedItem().toString();
 
             if (amount.isEmpty() || currentGoldPriceOunceUSD == 0) {
                 Toast.makeText(MainActivity.this, "Vui lòng nhập số liệu để lưu!", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Format đúng yêu cầu: "Ngày 10/03 - Vàng SJC - 160.000.000đ"
-            String dateTime = new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date());
-            String recordInfo = "Ngày " + dateTime + " - " + goldType + " - " + result;
+            // Format đúng yêu cầu hiển thị 2 dòng
+            String dateTime = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date());
+            String recordInfo = amount + " " + unit + " " + goldType + " = " + result.replace("đ", " VND");
 
             boolean isInserted = myDb.insertData(dateTime, recordInfo);
             if (isInserted) {
@@ -262,18 +267,33 @@ public class MainActivity extends AppCompatActivity {
 
         lineChart.animateX(1000);
         lineChart.invalidate();
+
+        if (txtAdvice != null && entries.size() >= 2) {
+            float firstVal = entries.get(0).getY();
+            float lastVal = entries.get(entries.size() - 1).getY();
+            if (lastVal > firstVal) {
+                txtAdvice.setText("Giá đang tăng trong 7 ngày qua.");
+                txtAdvice.setTextColor(Color.parseColor("#4CAF50")); // Green
+            } else if (lastVal < firstVal) {
+                txtAdvice.setText("Giá đang giảm trong 7 ngày qua.");
+                txtAdvice.setTextColor(Color.parseColor("#F44336")); // Red
+            } else {
+                txtAdvice.setText("Giá đang ổn định.");
+                txtAdvice.setTextColor(Color.parseColor("#2196F3")); // Blue
+            }
+        }
     }
 
     private class FetchGoldPriceTask extends AsyncTask<Void, Void, String> {
         @Override
         protected String doInBackground(Void... voids) {
-            String urlString = "https://api.metalpriceapi.com/v1/latest?api_key=" + API_KEY
-                    + "&base=USD&currencies=XAU";
+            String urlString = "https://www.goldapi.io/api/XAU/USD";
             StringBuilder result = new StringBuilder();
             try {
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
+                conn.setRequestProperty("x-access-token", API_KEY);
 
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 String line;
@@ -290,15 +310,13 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected void onPostExecute(String s) {
             try {
-                // Nếu không có mạng hoặc API không trả về data -> Ném lỗi để xuống khối catch
                 if (s == null)
                     throw new Exception("Lỗi mạng");
 
                 JSONObject jsonObject = new JSONObject(s);
-                JSONObject rates = jsonObject.getJSONObject("rates");
 
-                double xauRate = rates.getDouble("XAU");
-                currentGoldPriceOunceUSD = 1 / xauRate;
+                double price = jsonObject.getDouble("price");
+                currentGoldPriceOunceUSD = price;
 
                 if (txtUpdateTime != null) {
                     String time = new SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault()).format(new Date());
@@ -336,6 +354,12 @@ public class MainActivity extends AppCompatActivity {
                 double sellNhan = baseVNDPerLuong * 1.10;
                 double buyNhan = sellNhan - 1000000;
 
+                // 24K and 18K logic
+                double sell24k = baseVNDPerLuong * 1.05; // 24k Premium from GoldCalculator
+                double buy24k = sell24k - 800000;
+                double sell18k = baseVNDPerLuong * 0.75; // 18k Premium from GoldCalculator
+                double buy18k = sell18k - 600000;
+
                 // Đổ dữ liệu an toàn (kiểm tra null phòng trường hợp bạn quên ánh xạ View)
                 if (txtBuySJC != null)
                     txtBuySJC.setText(formatter.format(buySJC));
@@ -367,52 +391,46 @@ public class MainActivity extends AppCompatActivity {
     private class FetchGoldHistoryTask extends AsyncTask<Void, Void, Map<String, Double>> {
         @Override
         protected Map<String, Double> doInBackground(Void... voids) {
+            Map<String, Double> history = new LinkedHashMap<>();
             Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-            Date endDate = calendar.getTime();
             calendar.add(Calendar.DAY_OF_MONTH, -6);
-            Date startDate = calendar.getTime();
 
-            String start = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(startDate);
-            String end = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(endDate);
-            String urlString = "https://api.metalpriceapi.com/v1/timeframe?api_key=" + API_KEY + "&start_date=" + start
-                    + "&end_date=" + end + "&base=USD&currencies=XAU";
+            for (int i = 0; i < 6; i++) {
+                Date date = calendar.getTime();
+                String dateStr = new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(date);
+                String displayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date);
 
-            StringBuilder result = new StringBuilder();
-            try {
-                URL url = new URL(urlString);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
+                String urlString = "https://www.goldapi.io/api/XAU/USD/" + dateStr;
+                try {
+                    URL url = new URL(urlString);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("x-access-token", API_KEY);
 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    result.append(line);
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder result = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        result.append(line);
+                    }
+                    reader.close();
+
+                    JSONObject jsonObject = new JSONObject(result.toString());
+                    if (jsonObject.has("price")) {
+                        double price = jsonObject.getDouble("price");
+                        history.put(displayDate, price);
+                    }
+                } catch (Exception e) {
+                    // Ignore missing dates for now
                 }
-                reader.close();
-
-                JSONObject jsonObject = new JSONObject(result.toString());
-                if (!jsonObject.has("rates")) {
-                    return null;
-                }
-
-                JSONObject rates = jsonObject.getJSONObject("rates");
-                if (rates.names() == null) {
-                    return null;
-                }
-
-                Map<String, Double> history = new LinkedHashMap<>();
-                for (int i = 0; i < rates.names().length(); i++) {
-                    String dateKey = rates.names().getString(i);
-                    JSONObject dailyRate = rates.getJSONObject(dateKey);
-                    double xauRate = dailyRate.getDouble("XAU");
-                    double ounceUsd = 1 / xauRate;
-                    history.put(dateKey, ounceUsd);
-                }
-
-                return history;
-            } catch (Exception e) {
-                return null;
+                calendar.add(Calendar.DAY_OF_MONTH, 1);
             }
+
+            // Include current rate for the 7th point
+            String today = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+            history.put(today, currentGoldPriceOunceUSD);
+
+            return history.isEmpty() ? null : history;
         }
 
         @Override

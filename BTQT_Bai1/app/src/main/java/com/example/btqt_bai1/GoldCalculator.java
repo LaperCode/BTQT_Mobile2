@@ -19,9 +19,12 @@ public final class GoldCalculator {
             case "Vàng SJC":
                 return 1.25;
             case "Vàng PNJ":
+            case "Vàng 24k":
                 return 1.15;
             case "Vàng nhẫn 9999":
                 return 1.10;
+            case "Vàng 18k":
+                return 0.85;
             case "Vàng Thế Giới":
             default:
                 return 1.0;
