@@ -59,6 +59,7 @@ class GoldTrackerApp extends StatelessWidget {
   }
 }
 
+// MainScreen manages the bottom navigation and displays the corresponding screen for each tab
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 

@@ -104,6 +104,18 @@
             android:elevation="2dp" />
 
         <TextView
+            android:id="@+id/txtAdvice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Gợi ý đầu tư: Đang phân tích..."
+            android:textColor="#009688"
+            android:textSize="15sp"
+            android:textStyle="italic|bold"
+            android:gravity="center"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="10dp"/>
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="BẢNG GIÁ TRỰC TUYẾN (Cập nhật tự động)"

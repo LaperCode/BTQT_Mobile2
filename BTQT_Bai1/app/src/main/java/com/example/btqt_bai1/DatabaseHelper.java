@@ -18,7 +18,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
         // Tạo bảng lưu Lịch sử gồm: ID, Ngày giờ, và Nội dung
-        String createTable = "CREATE TABLE " + TABLE_NAME + " (ID INTEGER PRIMARY KEY AUTOINCREMENT, DATETIME TEXT, RECORD_INFO TEXT)";
+        String createTable = "CREATE TABLE " + TABLE_NAME
+                + " (ID INTEGER PRIMARY KEY AUTOINCREMENT, DATETIME TEXT, RECORD_INFO TEXT)";
         db.execSQL(createTable);
     }
 
@@ -42,5 +43,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public Cursor getAllData() {
         SQLiteDatabase db = this.getWritableDatabase();
         return db.rawQuery("SELECT * FROM " + TABLE_NAME + " ORDER BY ID DESC", null);
+    }
+
+    // Hàm xóa một bản ghi lịch sử
+    public Integer deleteData(String id) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        return db.delete(TABLE_NAME, "ID = ?", new String[] { id });
     }
 }
