@@ -11,6 +11,7 @@ public final class GoldCalculator {
     private GoldCalculator() {
     }
 
+    // Hàm lấy tỉ lệ tăng giá vàng dựa trên loại vàng
     public static double getPremiumMultiplier(String goldType) {
         if (goldType == null) {
             return 1.0;
@@ -22,7 +23,7 @@ public final class GoldCalculator {
             case "Vàng 24k":
                 return 1.15;
             case "Vàng nhẫn 9999":
-                return 1.10;
+                return 1.1;
             case "Vàng 18k":
                 return 0.85;
             case "Vàng Thế Giới":
