@@ -36,9 +36,20 @@
     <ListView
         android:id="@+id/listViewHistory"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:padding="10dp"
         android:divider="#E0E0E0"
         android:dividerHeight="1dp"/>
+
+    <Button
+        android:id="@+id/btnExportPdf"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📄 XUẤT BÁO CÁO PDF"
+        android:backgroundTint="#FF9800"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:layout_margin="10dp" />
 
 </LinearLayout>
