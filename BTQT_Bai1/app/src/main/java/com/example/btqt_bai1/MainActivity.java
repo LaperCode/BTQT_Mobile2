@@ -88,13 +88,13 @@ public class MainActivity extends AppCompatActivity {
 
         myDb = new DatabaseHelper(this);
 
-        // YÊU CẦU 1: Hỗ trợ nhiều loại vàng
+        // Hỗ trợ nhiều loại vàng
         String[] goldTypes = { "Vàng SJC", "Vàng PNJ", "Vàng nhẫn 9999", "Vàng 24k", "Vàng 18k", "Vàng Thế Giới" };
         ArrayAdapter<String> typeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
                 goldTypes);
         spinnerGoldType.setAdapter(typeAdapter);
 
-        // YÊU CẦU 1: Hỗ trợ nhiều đơn vị
+        // Hỗ trợ nhiều đơn vị
         String[] units = { "Lượng (Cây)", "Chỉ", "Gram (g)", "Ounce (oz)" };
         ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
                 units);
@@ -129,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
         spinnerGoldType.setOnItemSelectedListener(spinnerListener);
         spinnerUnit.setOnItemSelectedListener(spinnerListener);
 
-        // YÊU CẦU 2: Lưu lịch sử đúng chuẩn format
+        // Lưu lịch sử đúng chuẩn format
         btnSaveHistory.setOnClickListener(v -> {
             String amount = edtAmount.getText().toString();
             String result = txtResult.getText().toString();
@@ -153,7 +153,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 2. NÚT XEM LỊCH SỬ (Đã nâng cấp dùng Fragment)
         btnViewHistory.setOnClickListener(v -> {
             // Mở HistoryFragment đè lên toàn bộ màn hình
             getSupportFragmentManager().beginTransaction()
@@ -163,7 +162,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // YÊU CẦU 3: Tự động cập nhật khi mở ứng dụng
+    // Tự động cập nhật khi mở ứng dụng
     @Override
     protected void onResume() {
         super.onResume();
@@ -214,7 +213,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // YÊU CẦU 4: Biểu đồ biến động 7 ngày gần nhất
+    // Biểu đồ biến động 7 ngày gần nhất
     private void updateChartFromHistory() {
         String goldType = spinnerGoldType.getSelectedItem().toString();
         double premiumMultiplier = GoldCalculator.getPremiumMultiplier(goldType);
@@ -274,13 +273,13 @@ public class MainActivity extends AppCompatActivity {
             float lastVal = entries.get(entries.size() - 1).getY();
             if (lastVal > firstVal) {
                 txtAdvice.setText("Giá đang tăng trong 7 ngày qua.");
-                txtAdvice.setTextColor(Color.parseColor("#4CAF50")); //xanh la
+                txtAdvice.setTextColor(Color.parseColor("#4CAF50")); // xanh la
             } else if (lastVal < firstVal) {
                 txtAdvice.setText("Giá đang giảm trong 7 ngày qua.");
-                txtAdvice.setTextColor(Color.parseColor("#F44336")); //Do
+                txtAdvice.setTextColor(Color.parseColor("#F44336")); // Do
             } else {
                 txtAdvice.setText("Giá đang ổn định.");
-                txtAdvice.setTextColor(Color.parseColor("#2196F3")); //xanh duong
+                txtAdvice.setTextColor(Color.parseColor("#2196F3")); // xanh duong
             }
         }
     }
@@ -288,7 +287,8 @@ public class MainActivity extends AppCompatActivity {
     private class FetchGoldPriceTask extends AsyncTask<Void, Void, String> {
         @Override
         protected String doInBackground(Void... voids) {
-            String urlString = "https://api.metalpriceapi.com/v1/latest?api_key=" + API_KEY + "&base=USD&currencies=XAU";
+            String urlString = "https://api.metalpriceapi.com/v1/latest?api_key=" + API_KEY
+                    + "&base=USD&currencies=XAU";
             StringBuilder result = new StringBuilder();
             try {
                 URL url = new URL(urlString);
@@ -328,8 +328,8 @@ public class MainActivity extends AppCompatActivity {
 
                 JSONObject rates = jsonObject.getJSONObject("rates");
                 double xauRate = rates.getDouble("XAU");
-                
-                // xauRate là tỉ lệ vàng 1 USD mua được, nên cần nghịch đảo để lấy giá 1 Ounce = USD
+
+                // xauRate là tỉ lệ vàng 1 USD mua được, nên cần nghịch đảo để lấy giá 1 Ounce =USD
                 currentGoldPriceOunceUSD = 1.0 / xauRate;
 
                 if (txtUpdateTime != null) {
@@ -344,12 +344,13 @@ public class MainActivity extends AppCompatActivity {
                 }
                 Toast.makeText(MainActivity.this, "Lỗi API: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 return; // Ngừng tiếp tục khi có lỗi, bỏ qua code đổ dữ liệu
-            }            if (currentGoldPriceOunceUSD > 0) {
+            }
+            if (currentGoldPriceOunceUSD > 0) {
                 double baseVNDPerLuong = GoldCalculator.convertOunceUsdToLuongVnd(currentGoldPriceOunceUSD,
                         USD_TO_VND_RATE);
                 DecimalFormat formatter = new DecimalFormat("#,###");
 
-                //Vàng Thế Giới
+                // Vàng Thế Giới
                 double sellTheGioi = baseVNDPerLuong;
                 double buyTheGioi = sellTheGioi - 500000;
 
@@ -365,7 +366,7 @@ public class MainActivity extends AppCompatActivity {
                 double sellNhan = baseVNDPerLuong * 1.10;
                 double buyNhan = sellNhan - 1000000;
 
-                //24K and 18K logic
+                // 24K and 18K logic
                 double sell24k = baseVNDPerLuong * 1.05; // 24k Premium from GoldCalculator
                 double buy24k = sell24k - 800000;
                 double sell18k = baseVNDPerLuong * 0.75; // 18k Premium from GoldCalculator
@@ -411,7 +412,8 @@ public class MainActivity extends AppCompatActivity {
                 String dateStr = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date);
                 String displayDate = dateStr;
 
-                String urlString = "https://api.metalpriceapi.com/v1/" + dateStr + "?api_key=" + API_KEY + "&base=USD&currencies=XAU";
+                String urlString = "https://api.metalpriceapi.com/v1/" + dateStr + "?api_key=" + API_KEY
+                        + "&base=USD&currencies=XAU";
                 try {
                     URL url = new URL(urlString);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -430,7 +432,8 @@ public class MainActivity extends AppCompatActivity {
                         double rate = jsonObject.getJSONObject("rates").getDouble("XAU");
                         history.put(displayDate, 1.0 / rate);
                     }
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                }
                 calendar.add(Calendar.DAY_OF_MONTH, 1);
             }
 
