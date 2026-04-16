@@ -32,6 +32,7 @@ public final class GoldCalculator {
         }
     }
 
+    // Hàm chuyển đổi số lượng vàng sang USD
     public static double convertAmountToUsd(double amount, String unit, double priceOunceUsd) {
         if (unit == null) {
             return 0.0;
