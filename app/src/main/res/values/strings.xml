@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Dự báo thời tiết</string>
+    <string name="weather_loading">Đang tải dữ liệu thời tiết...</string>
+    <string name="weather_permission_required">Cần quyền vị trí để lấy thời tiết theo nơi hiện tại.</string>
+    <string name="weather_error">Không tải được dữ liệu thời tiết.</string>
+    <string name="google_maps_key">YOUR_GOOGLE_MAPS_API_KEY</string>
+</resources>
