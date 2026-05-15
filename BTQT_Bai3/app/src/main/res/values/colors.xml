@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hacker_black">#FF040806</color>
+    <color name="hacker_black_alt">#FF0A120E</color>
+
+    <color name="panel_dark">#B2141D18</color>
+    <color name="panel_dark_soft">#8C141D18</color>
+    <color name="panel_dark_alt">#E20F1713</color>
+
+    <color name="matrix_green">#FF54FF9A</color>
+    <color name="matrix_green_soft">#FFB4FFD6</color>
+    <color name="matrix_green_dim">#FF5DAA7E</color>
+    <color name="matrix_green_stroke">#6654FF9A</color>
+
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+</resources>
