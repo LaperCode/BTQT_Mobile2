@@ -52,6 +52,9 @@ public class MainActivity extends AppCompatActivity {
     private double currentGoldPriceOunceUSD = 0.0;
     private final double USD_TO_VND_RATE = 25000.0;
     private static final String API_KEY = "a4f1eccb8e33176d294b9273afa45521";
+    // Giá vàng dự phòng (fallback) khi API bị lỗi - cập nhật theo thị trường tháng 4/2026
+    private static final double FALLBACK_GOLD_PRICE_USD = 3300.0;
+    private boolean isUsingFallback = false;
     private final ArrayList<Double> last7DaysOunceUsd = new ArrayList<>();
     private final ArrayList<String> last7DaysLabels = new ArrayList<>();
 
@@ -323,14 +326,23 @@ public class MainActivity extends AppCompatActivity {
 
                 JSONObject jsonObject = new JSONObject(s);
                 if (!jsonObject.has("success") || !jsonObject.getBoolean("success")) {
-                    throw new Exception("Lỗi từ API Server");
+                    // Lấy thông tin lỗi chi tiết nếu có
+                    String errorMsg = "Lỗi từ API Server";
+                    if (jsonObject.has("error")) {
+                        JSONObject errorObj = jsonObject.optJSONObject("error");
+                        if (errorObj != null && errorObj.has("info")) {
+                            errorMsg = errorObj.getString("info");
+                        }
+                    }
+                    throw new Exception(errorMsg);
                 }
 
                 JSONObject rates = jsonObject.getJSONObject("rates");
                 double xauRate = rates.getDouble("XAU");
 
-                // xauRate là tỉ lệ vàng 1 USD mua được, nên cần nghịch đảo để lấy giá 1 Ounce =USD
+                // xauRate là tỉ lệ vàng 1 USD mua được, nên cần nghịch đảo để lấy giá 1 Ounce = USD
                 currentGoldPriceOunceUSD = 1.0 / xauRate;
+                isUsingFallback = false;
 
                 if (txtUpdateTime != null) {
                     String time = new SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault()).format(new Date());
@@ -338,13 +350,19 @@ public class MainActivity extends AppCompatActivity {
                 }
 
             } catch (Exception e) {
-                currentGoldPriceOunceUSD = 0.0;
+                // === FALLBACK: Dùng giá vàng dự phòng khi API lỗi ===
+                currentGoldPriceOunceUSD = FALLBACK_GOLD_PRICE_USD;
+                isUsingFallback = true;
+
                 if (txtUpdateTime != null) {
-                    txtUpdateTime.setText("Lỗi API: " + e.getMessage());
+                    txtUpdateTime.setText("⚠ Dùng giá tham khảo (API lỗi: " + e.getMessage() + ")");
                 }
-                Toast.makeText(MainActivity.this, "Lỗi API: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                return; // Ngừng tiếp tục khi có lỗi, bỏ qua code đổ dữ liệu
+                Toast.makeText(MainActivity.this,
+                        "API lỗi - Đang dùng giá tham khảo ~$" + (int) FALLBACK_GOLD_PRICE_USD + "/oz",
+                        Toast.LENGTH_LONG).show();
             }
+
+            // Luôn đổ dữ liệu bảng giá dù là API thật hay fallback
             if (currentGoldPriceOunceUSD > 0) {
                 double baseVNDPerLuong = GoldCalculator.convertOunceUsdToLuongVnd(currentGoldPriceOunceUSD,
                         USD_TO_VND_RATE);
@@ -367,9 +385,9 @@ public class MainActivity extends AppCompatActivity {
                 double buyNhan = sellNhan - 1000000;
 
                 // 24K and 18K logic
-                double sell24k = baseVNDPerLuong * 1.05; // 24k Premium from GoldCalculator
+                double sell24k = baseVNDPerLuong * 1.05;
                 double buy24k = sell24k - 800000;
-                double sell18k = baseVNDPerLuong * 0.75; // 18k Premium from GoldCalculator
+                double sell18k = baseVNDPerLuong * 0.75;
                 double buy18k = sell18k - 600000;
 
                 // Đổ dữ liệu an toàn và kiểm tra null phòng trường hợp quên ánh xạ View
@@ -395,7 +413,14 @@ public class MainActivity extends AppCompatActivity {
 
                 // Kích hoạt tính toán lại ô nhập liệu và vẽ biểu đồ
                 calculateGoldPrice();
-                new FetchGoldHistoryTask().execute();
+
+                // Chỉ fetch lịch sử 7 ngày nếu API thật hoạt động
+                if (!isUsingFallback) {
+                    new FetchGoldHistoryTask().execute();
+                } else {
+                    // Vẽ chart giả lập khi dùng fallback
+                    updateChartFromHistory();
+                }
             }
         }
     }

@@ -150,10 +150,9 @@ public class HistoryFragment extends Fragment {
         listViewHistory.setAdapter(adapter);
     }
 
-    // =====================================================
-    // PHẦN XUẤT PDF VÀ CHIA SẺ
-    // =====================================================
 
+    
+    // PHẦN XUẤT PDF VÀ CHIA SẺ
     private void generateAndSharePdf() {
         // Kích thước trang A4 (đơn vị PostScript point: 1 inch = 72 point)
         int pageWidth = 595;  // A4 width

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_hacker_gradient">
+
+    <com.dangngu.myapplication.MatrixRainView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.26" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/overlay_scanlines"
+        android:alpha="0.55" />
+
+    <LinearLayout
+        android:id="@+id/splashCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_margin="24dp"
+        android:background="@drawable/panel_hacker"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/tvBootTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:text="HACKER IOT CONTROL"
+            android:textColor="@color/matrix_green"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvTypewriter"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/matrix_green_soft"
+            android:textSize="14sp" />
+
+        <ProgressBar
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:layout_marginTop="18dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="72"
+            android:progressTint="@color/matrix_green"
+            android:progressBackgroundTint="@color/panel_dark_alt" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:fontFamily="monospace"
+            android:text="Calibrating accelerometer + gyroscope..."
+            android:textColor="@color/matrix_green_dim"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+</FrameLayout>
