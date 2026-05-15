@@ -14,4 +14,19 @@
 
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
+
+    <!-- Light bulb visual states -->
+    <color name="light_on_glow">#FFFFEA00</color>
+    <color name="light_on_warm">#FFFFD54F</color>
+    <color name="light_on_bg">#33FFEA00</color>
+    <color name="light_off_bg">#33141D18</color>
+
+    <!-- Media accent -->
+    <color name="media_cyan">#FF00E5FF</color>
+    <color name="media_cyan_dim">#8800E5FF</color>
+    <color name="media_playing_bg">#1A00E5FF</color>
+
+    <!-- Red for paused/stop -->
+    <color name="state_red">#FFFF5252</color>
+    <color name="state_red_dim">#88FF5252</color>
 </resources>

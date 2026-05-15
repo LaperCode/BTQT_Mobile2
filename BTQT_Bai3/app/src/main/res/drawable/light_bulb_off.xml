@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer circle (bulb body) -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#33444444" />
+            <stroke android:width="2dp" android:color="#665DAA7E" />
+            <size android:width="80dp" android:height="80dp" />
+        </shape>
+    </item>
+    <!-- Inner icon-like dot -->
+    <item android:left="28dp" android:top="28dp" android:right="28dp" android:bottom="28dp">
+        <shape android:shape="oval">
+            <solid android:color="#885DAA7E" />
+        </shape>
+    </item>
+</layer-list>

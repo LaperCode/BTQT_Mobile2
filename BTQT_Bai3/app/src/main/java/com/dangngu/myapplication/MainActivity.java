@@ -3,6 +3,7 @@ package com.dangngu.myapplication;
 import android.Manifest;
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Intent;
@@ -12,6 +13,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -20,6 +22,7 @@ import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -87,12 +90,21 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private int maxSystemVolume = 0;
     private boolean ambientAnimationsEnabled = true;
 
+    // Media player
+    private MediaPlayer mediaPlayer;
+    private boolean mediaPlaying = false;
+    private final Handler progressHandler = new Handler(Looper.getMainLooper());
+    private Runnable progressRunnable;
+
     private final String[] mediaPlaylist = {
             "Neon Grid / Track 01",
             "Digital Drift / Track 02",
             "Cyber Skyline / Track 03",
             "Phantom Signal / Track 04"
     };
+
+    // Map tracks to raw resource IDs (will be set in initMediaPlayer)
+    private int[] mediaResIds;
 
     private TextView tvGestureState;
     private TextView tvLightState;
@@ -122,6 +134,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private View cardTimeline;
 
     private ProgressBar volumeBar;
+    private ProgressBar mediaProgressBar;
     private EditText etWifiEndpoint;
     private EditText etBluetoothAddress;
 
@@ -131,10 +144,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private MaterialButton btnFanToggle;
     private MaterialButton btnTvToggle;
     private MaterialButton btnSendPing;
+    private MaterialButton btnMediaPrev;
+    private MaterialButton btnMediaPlayPause;
+    private MaterialButton btnMediaNext;
 
     private View ringOne;
     private View ringTwo;
     private View ringThree;
+
+    // Light bulb visual
+    private View lightBulbIcon;
+    private TextView tvLightOnOff;
+    private FrameLayout lightBulbContainer;
+
+    // Media track display
+    private TextView tvMediaTrackName;
+    private TextView tvMediaPlayStatus;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -147,6 +172,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         initTabs();
         initChannelSelection();
         initButtons();
+        initMediaPlayer();
         initDefaults();
         startEntranceAnimations();
         startRadarPulse();
@@ -187,6 +213,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         cardTimeline = findViewById(R.id.cardTimeline);
 
         volumeBar = findViewById(R.id.volumeBar);
+        mediaProgressBar = findViewById(R.id.mediaProgressBar);
         etWifiEndpoint = findViewById(R.id.etWifiEndpoint);
         etBluetoothAddress = findViewById(R.id.etBluetoothAddress);
 
@@ -196,10 +223,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btnFanToggle = findViewById(R.id.btnFanToggle);
         btnTvToggle = findViewById(R.id.btnTvToggle);
         btnSendPing = findViewById(R.id.btnSendPing);
+        btnMediaPrev = findViewById(R.id.btnMediaPrev);
+        btnMediaPlayPause = findViewById(R.id.btnMediaPlayPause);
+        btnMediaNext = findViewById(R.id.btnMediaNext);
 
         ringOne = findViewById(R.id.ringOne);
         ringTwo = findViewById(R.id.ringTwo);
         ringThree = findViewById(R.id.ringThree);
+
+        // Light bulb visual
+        lightBulbIcon = findViewById(R.id.lightBulbIcon);
+        tvLightOnOff = findViewById(R.id.tvLightOnOff);
+        lightBulbContainer = findViewById(R.id.lightBulbContainer);
+
+        // Media track display
+        tvMediaTrackName = findViewById(R.id.tvMediaTrackName);
+        tvMediaPlayStatus = findViewById(R.id.tvMediaPlayStatus);
     }
 
     private void initSystemServices() {
@@ -250,11 +289,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             animateTap(v);
             disconnectBluetooth();
         });
+
+        // Media controls
+        btnMediaPlayPause.setOnClickListener(v -> {
+            animateTap(v);
+            toggleMediaPlayback();
+        });
+        btnMediaPrev.setOnClickListener(v -> {
+            animateTap(v);
+            switchTrack(false);
+        });
+        btnMediaNext.setOnClickListener(v -> {
+            animateTap(v);
+            switchTrack(true);
+        });
     }
 
     private void initDefaults() {
         volumeBar.setMax(100);
         volumeBar.setProgress(volumePercent);
+        mediaProgressBar.setMax(100);
+        mediaProgressBar.setProgress(0);
         etWifiEndpoint.setText("http://192.168.1.100:8080/command");
 
         updateLightUI("idle");
@@ -264,6 +319,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         updateFanButton();
         updateTvButton();
         updateConnectionUI();
+        updateMediaPlaybackUI();
         tvGestureState.setText("LISTENING...");
     }
 
@@ -466,6 +522,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }
         }
         ambientAnimationsEnabled = true;
+        // Resume media if it was playing
+        if (mediaPlayer != null && mediaPlaying && !mediaPlayer.isPlaying()) {
+            mediaPlayer.start();
+        }
     }
 
     @Override
@@ -473,6 +533,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         ambientAnimationsEnabled = false;
         if (sensorManager != null) {
             sensorManager.unregisterListener(this);
+        }
+        // Pause media when app goes to background
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            mediaPlayer.pause();
         }
         super.onPause();
     }
@@ -485,6 +549,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }
         }
         uiHandler.removeCallbacksAndMessages(null);
+        progressHandler.removeCallbacksAndMessages(null);
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
         if (commandDispatcher != null) {
             commandDispatcher.release();
         }
@@ -586,11 +655,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         lastRotateTrigger = now;
 
         boolean next = zAxis > 0;
-        mediaIndex = next
-                ? (mediaIndex + 1) % mediaPlaylist.length
-                : (mediaIndex - 1 + mediaPlaylist.length) % mediaPlaylist.length;
-
-        updateMediaUI(next ? "rotate right" : "rotate left");
+        switchTrack(next);
         tvGestureState.setText(next ? "ROTATE RIGHT -> NEXT" : "ROTATE LEFT -> PREV");
         pulseGestureLabel();
         dispatchCommand(next ? "MEDIA_NEXT" : "MEDIA_PREV", "gesture rotate");
@@ -604,11 +669,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         lastRotateTrigger = now;
 
         boolean next = xGravity > 0;
-        mediaIndex = next
-                ? (mediaIndex + 1) % mediaPlaylist.length
-                : (mediaIndex - 1 + mediaPlaylist.length) % mediaPlaylist.length;
-
-        updateMediaUI(next ? "roll right" : "roll left");
+        switchTrack(next);
         tvGestureState.setText(next ? "ROLL RIGHT -> NEXT" : "ROLL LEFT -> PREV");
         pulseGestureLabel();
         dispatchCommand(next ? "MEDIA_NEXT" : "MEDIA_PREV", "gesture roll");
@@ -636,11 +697,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         tvOn = false;
         volumePercent = 12;
 
+        // Also pause media
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            mediaPlayer.pause();
+            mediaPlaying = false;
+        }
+
         updateLightUI("Night Guard");
         updateFanButton();
         updateTvButton();
         updateVolumeUI("Night Guard");
         updateCreativeUI("Night Guard active: all devices OFF");
+        updateMediaPlaybackUI();
 
         tvGestureState.setText("FACE DOWN -> NIGHT GUARD");
         pulseGestureLabel();
@@ -670,6 +738,41 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         tvLightState.setText("Light: " + value + "  [" + source + "]");
         tvLightState.setTextColor(ContextCompat.getColor(this, lightOn ? R.color.matrix_green : R.color.matrix_green_dim));
         btnLightManual.setText(lightOn ? "FORCE LIGHT OFF" : "FORCE LIGHT ON");
+
+        // Visual bulb indicator
+        lightBulbIcon.setBackgroundResource(lightOn ? R.drawable.light_bulb_on : R.drawable.light_bulb_off);
+        tvLightOnOff.setText(lightOn ? "ON" : "OFF");
+        tvLightOnOff.setTextColor(ContextCompat.getColor(this,
+                lightOn ? R.color.light_on_glow : R.color.matrix_green_dim));
+
+        // Animate the bulb icon on state change
+        lightBulbIcon.animate()
+                .scaleX(lightOn ? 1.15f : 0.9f)
+                .scaleY(lightOn ? 1.15f : 0.9f)
+                .setDuration(200L)
+                .withEndAction(() -> lightBulbIcon.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(400L)
+                        .setInterpolator(new DecelerateInterpolator())
+                        .start())
+                .start();
+
+        // Animate the ON/OFF label
+        tvLightOnOff.animate()
+                .scaleX(1.2f)
+                .scaleY(1.2f)
+                .setDuration(150L)
+                .withEndAction(() -> tvLightOnOff.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(300L)
+                        .start())
+                .start();
+
+        // Change card background tint subtly
+        lightBulbContainer.setBackgroundColor(ContextCompat.getColor(this,
+                lightOn ? R.color.light_on_bg : R.color.light_off_bg));
     }
 
     private void updateVolumeUI(String source) {
@@ -683,6 +786,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private void updateMediaUI(String source) {
         tvMediaState.setText("Now: " + mediaPlaylist[mediaIndex] + "  [" + source + "]");
+        tvMediaTrackName.setText(mediaPlaylist[mediaIndex]);
+
+        // Animate track name change
+        tvMediaTrackName.animate()
+                .alpha(0.3f)
+                .setDuration(100L)
+                .withEndAction(() -> tvMediaTrackName.animate()
+                        .alpha(1f)
+                        .setDuration(300L)
+                        .start())
+                .start();
+
+        updateMediaPlaybackUI();
     }
 
     private void updateCreativeUI(String state) {
@@ -763,5 +879,133 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    // ──────────────────────────────────────────────
+    // Media Player methods
+    // ──────────────────────────────────────────────
+
+    private void initMediaPlayer() {
+        // Use built-in ringtone/notification sounds as demo tracks
+        mediaResIds = new int[]{
+                android.provider.Settings.System.DEFAULT_NOTIFICATION_URI.hashCode(),
+                android.provider.Settings.System.DEFAULT_RINGTONE_URI.hashCode(),
+                android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI.hashCode(),
+                android.provider.Settings.System.DEFAULT_NOTIFICATION_URI.hashCode()
+        };
+
+        // Create initial media player with a default system ringtone
+        try {
+            mediaPlayer = MediaPlayer.create(this,
+                    android.provider.Settings.System.DEFAULT_NOTIFICATION_URI);
+            if (mediaPlayer != null) {
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setOnCompletionListener(mp -> {
+                    // Auto-advance to next track if not looping
+                    switchTrack(true);
+                });
+                // Start playing immediately
+                mediaPlayer.start();
+                mediaPlaying = true;
+            }
+        } catch (Exception e) {
+            appendLog("Media init error: " + e.getMessage());
+            mediaPlaying = false;
+        }
+
+        // Progress updater runnable
+        progressRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (mediaPlayer != null && mediaPlaying) {
+                    try {
+                        int duration = mediaPlayer.getDuration();
+                        int position = mediaPlayer.getCurrentPosition();
+                        if (duration > 0) {
+                            int progress = (int) ((position / (float) duration) * 100);
+                            mediaProgressBar.setProgress(progress);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+                progressHandler.postDelayed(this, 500);
+            }
+        };
+        progressHandler.post(progressRunnable);
+    }
+
+    private void switchTrack(boolean next) {
+        mediaIndex = next
+                ? (mediaIndex + 1) % mediaPlaylist.length
+                : (mediaIndex - 1 + mediaPlaylist.length) % mediaPlaylist.length;
+
+        // Restart media player with new "track" (using different system sounds)
+        try {
+            if (mediaPlayer != null) {
+                mediaPlayer.release();
+                mediaPlayer = null;
+            }
+
+            // Use different system URIs for each track to simulate different songs
+            android.net.Uri trackUri;
+            switch (mediaIndex) {
+                case 0:
+                    trackUri = android.provider.Settings.System.DEFAULT_NOTIFICATION_URI;
+                    break;
+                case 1:
+                    trackUri = android.provider.Settings.System.DEFAULT_RINGTONE_URI;
+                    break;
+                case 2:
+                    trackUri = android.provider.Settings.System.DEFAULT_ALARM_ALERT_URI;
+                    break;
+                default:
+                    trackUri = android.provider.Settings.System.DEFAULT_NOTIFICATION_URI;
+                    break;
+            }
+
+            mediaPlayer = MediaPlayer.create(this, trackUri);
+            if (mediaPlayer != null) {
+                mediaPlayer.setLooping(true);
+                if (mediaPlaying) {
+                    mediaPlayer.start();
+                }
+            }
+        } catch (Exception e) {
+            appendLog("Track switch error: " + e.getMessage());
+        }
+
+        updateMediaUI(next ? "next" : "prev");
+        appendLog("Track changed: " + mediaPlaylist[mediaIndex]);
+    }
+
+    private void toggleMediaPlayback() {
+        if (mediaPlayer == null) {
+            appendLog("No media player available.");
+            return;
+        }
+
+        if (mediaPlaying) {
+            mediaPlayer.pause();
+            mediaPlaying = false;
+            appendLog("Media paused: " + mediaPlaylist[mediaIndex]);
+        } else {
+            mediaPlayer.start();
+            mediaPlaying = true;
+            appendLog("Media playing: " + mediaPlaylist[mediaIndex]);
+        }
+
+        updateMediaPlaybackUI();
+    }
+
+    private void updateMediaPlaybackUI() {
+        if (mediaPlaying) {
+            btnMediaPlayPause.setText("⏸ PAUSE");
+            tvMediaPlayStatus.setText("▶ PLAYING");
+            tvMediaPlayStatus.setTextColor(ContextCompat.getColor(this, R.color.matrix_green));
+        } else {
+            btnMediaPlayPause.setText("▶ PLAY");
+            tvMediaPlayStatus.setText("⏸ PAUSED");
+            tvMediaPlayStatus.setTextColor(ContextCompat.getColor(this, R.color.state_red));
+        }
     }
 }

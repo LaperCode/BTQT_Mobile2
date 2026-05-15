@@ -201,12 +201,42 @@
                             android:textSize="15sp"
                             android:textStyle="bold" />
 
+                        <!-- Visual light bulb indicator -->
+                        <FrameLayout
+                            android:id="@+id/lightBulbContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:layout_marginBottom="6dp"
+                            android:padding="10dp">
+
+                            <View
+                                android:id="@+id/lightBulbIcon"
+                                android:layout_width="100dp"
+                                android:layout_height="100dp"
+                                android:layout_gravity="center"
+                                android:background="@drawable/light_bulb_off" />
+
+                            <TextView
+                                android:id="@+id/tvLightOnOff"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:layout_marginTop="114dp"
+                                android:fontFamily="monospace"
+                                android:text="OFF"
+                                android:textColor="@color/matrix_green_dim"
+                                android:textSize="22sp"
+                                android:textStyle="bold" />
+                        </FrameLayout>
+
                         <TextView
                             android:id="@+id/tvLightState"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="4dp"
                             android:fontFamily="monospace"
+                            android:gravity="center"
                             android:textColor="@color/matrix_green_soft"
                             android:textSize="13sp" />
 
@@ -236,6 +266,78 @@
                             android:textColor="@color/matrix_green"
                             android:textSize="15sp"
                             android:textStyle="bold" />
+
+                        <!-- Track name display -->
+                        <TextView
+                            android:id="@+id/tvMediaTrackName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:text="Neon Grid / Track 01"
+                            android:textColor="@color/media_cyan"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <!-- Play status label -->
+                        <TextView
+                            android:id="@+id/tvMediaPlayStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="monospace"
+                            android:text="▶ PLAYING"
+                            android:textColor="@color/matrix_green"
+                            android:textSize="12sp" />
+
+                        <!-- Playback progress bar -->
+                        <ProgressBar
+                            android:id="@+id/mediaProgressBar"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="6dp"
+                            android:layout_marginTop="10dp"
+                            android:max="100"
+                            android:progress="0"
+                            android:progressTint="@color/media_cyan"
+                            android:progressBackgroundTint="@color/panel_dark_alt" />
+
+                        <!-- Media control row: Prev | Play/Pause | Next -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnMediaPrev"
+                                style="@style/Widget.MyApplication.HackerButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="⏮ PREV" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnMediaPlayPause"
+                                style="@style/Widget.MyApplication.HackerButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_marginEnd="6dp"
+                                android:layout_weight="1"
+                                android:text="⏸ PAUSE" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnMediaNext"
+                                style="@style/Widget.MyApplication.HackerButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="NEXT ⏭" />
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvMediaState"
