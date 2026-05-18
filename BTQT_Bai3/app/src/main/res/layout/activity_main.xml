@@ -196,39 +196,63 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:fontFamily="monospace"
-                            android:text="Wave Hand => Smart Light"
+                            android:text="Wave Hand => Phone Flashlight"
                             android:textColor="@color/matrix_green"
                             android:textSize="15sp"
                             android:textStyle="bold" />
 
-                        <!-- Visual light bulb indicator -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="monospace"
+                            android:text="Wave your hand in front of the screen to toggle"
+                            android:textColor="@color/matrix_green_dim"
+                            android:textSize="11sp" />
+
+                        <!-- Flashlight status display -->
                         <FrameLayout
-                            android:id="@+id/lightBulbContainer"
+                            android:id="@+id/flashContainer"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="14dp"
                             android:layout_marginBottom="6dp"
-                            android:padding="10dp">
-
-                            <View
-                                android:id="@+id/lightBulbIcon"
-                                android:layout_width="100dp"
-                                android:layout_height="100dp"
-                                android:layout_gravity="center"
-                                android:background="@drawable/light_bulb_off" />
+                            android:background="@color/light_off_bg"
+                            android:padding="20dp">
 
                             <TextView
-                                android:id="@+id/tvLightOnOff"
+                                android:id="@+id/tvFlashIcon"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
-                                android:layout_marginTop="114dp"
+                                android:fontFamily="monospace"
+                                android:text="🔦"
+                                android:textSize="56sp" />
+
+                            <TextView
+                                android:id="@+id/tvFlashOnOff"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:layout_marginTop="80dp"
                                 android:fontFamily="monospace"
                                 android:text="OFF"
                                 android:textColor="@color/matrix_green_dim"
                                 android:textSize="22sp"
                                 android:textStyle="bold" />
                         </FrameLayout>
+
+                        <!-- Proximity wave indicator -->
+                        <TextView
+                            android:id="@+id/tvProximityState"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:text="Proximity: waiting..."
+                            android:textColor="@color/matrix_green_dim"
+                            android:textSize="12sp" />
 
                         <TextView
                             android:id="@+id/tvLightState"
@@ -246,7 +270,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="FORCE LIGHT ON" />
+                            android:text="FORCE FLASH ON" />
                     </LinearLayout>
 
                     <LinearLayout
