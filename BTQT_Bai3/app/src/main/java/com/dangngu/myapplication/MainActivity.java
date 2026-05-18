@@ -5,13 +5,18 @@ import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
+import android.app.admin.DevicePolicyManager;
 import android.bluetooth.BluetoothAdapter;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
@@ -44,6 +49,7 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
     private static final int REQ_BLUETOOTH_PERMISSION = 811;
+    private static final int REQ_DEVICE_ADMIN = 812;
     private static final float LOW_PASS_ALPHA = 0.82f;
     private static final float WAVE_THRESHOLD = 2.35f;
     private static final float TILT_THRESHOLD = 2.2f;
@@ -58,7 +64,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private SensorManager sensorManager;
     private Sensor accelerometer;
     private Sensor gyroscope;
+    private Sensor proximitySensor;
     private AudioManager audioManager;
+    private CameraManager cameraManager;
+    private String cameraId;
+    private DevicePolicyManager devicePolicyManager;
+    private ComponentName adminComponent;
 
     private IoTCommandDispatcher commandDispatcher;
 
@@ -81,8 +92,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private long faceDownStart = 0L;
     private long lastNightGuardTrigger = 0L;
 
-    private boolean lightOn = false;
+    private boolean flashOn = false;
     private boolean fanOn = false;
+
+    // Proximity wave detection
+    private boolean proxNear = false;
+    private long lastProxToggle = 0L;
     private boolean tvOn = false;
 
     private int currentSection = 0;
@@ -152,10 +167,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private View ringTwo;
     private View ringThree;
 
-    // Light bulb visual
-    private View lightBulbIcon;
-    private TextView tvLightOnOff;
-    private FrameLayout lightBulbContainer;
+    // Flashlight visual
+    private TextView tvFlashIcon;
+    private TextView tvFlashOnOff;
+    private FrameLayout flashContainer;
+    private TextView tvProximityState;
 
     // Media track display
     private TextView tvMediaTrackName;
@@ -231,10 +247,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         ringTwo = findViewById(R.id.ringTwo);
         ringThree = findViewById(R.id.ringThree);
 
-        // Light bulb visual
-        lightBulbIcon = findViewById(R.id.lightBulbIcon);
-        tvLightOnOff = findViewById(R.id.tvLightOnOff);
-        lightBulbContainer = findViewById(R.id.lightBulbContainer);
+        // Flashlight visual
+        tvFlashIcon = findViewById(R.id.tvFlashIcon);
+        tvFlashOnOff = findViewById(R.id.tvFlashOnOff);
+        flashContainer = findViewById(R.id.flashContainer);
+        tvProximityState = findViewById(R.id.tvProximityState);
 
         // Media track display
         tvMediaTrackName = findViewById(R.id.tvMediaTrackName);
@@ -246,12 +263,29 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if (sensorManager != null) {
             accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
         }
 
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         if (audioManager != null) {
             maxSystemVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
         }
+
+        // Init camera manager for flashlight
+        cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            if (cameraManager != null) {
+                String[] ids = cameraManager.getCameraIdList();
+                if (ids.length > 0) {
+                    cameraId = ids[0];
+                }
+            }
+        } catch (CameraAccessException e) {
+            appendLog("Camera init error: " + e.getMessage());
+        }
+
+        devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+        adminComponent = new ComponentName(this, ScreenLockAdminReceiver.class);
     }
 
     private void initDispatcher() {
@@ -273,7 +307,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void initButtons() {
-        btnLightManual.setOnClickListener(v -> toggleLight("manual"));
+        btnLightManual.setOnClickListener(v -> toggleFlash("manual"));
         btnFanToggle.setOnClickListener(v -> toggleFan());
         btnTvToggle.setOnClickListener(v -> toggleTv());
         btnSendPing.setOnClickListener(v -> {
@@ -312,7 +346,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         mediaProgressBar.setProgress(0);
         etWifiEndpoint.setText("http://192.168.1.100:8080/command");
 
-        updateLightUI("idle");
+        updateFlashUI("idle");
         updateMediaUI("idle");
         updateVolumeUI("idle");
         updateCreativeUI("Night Guard: waiting");
@@ -520,6 +554,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             if (gyroscope != null) {
                 sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
             }
+            if (proximitySensor != null) {
+                sensorManager.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+            }
         }
         ambientAnimationsEnabled = true;
         // Resume media if it was playing
@@ -557,6 +594,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if (commandDispatcher != null) {
             commandDispatcher.release();
         }
+        // Turn off flashlight when app is destroyed
+        if (flashOn) {
+            setFlashlight(false);
+        }
         super.onDestroy();
     }
 
@@ -571,7 +612,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             linearAcceleration[1] = event.values[1] - gravity[1];
             linearAcceleration[2] = event.values[2] - gravity[2];
 
-            detectWave(linearAcceleration[0]);
             detectTiltForVolume(gravity[1]);
             detectFaceDownMacro(gravity[2]);
             detectRollForMedia(gravity[0]);
@@ -580,40 +620,49 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
             detectRotationForMedia(event.values[2]);
         }
+
+        // Proximity sensor: detect hand wave in front of screen
+        if (event.sensor.getType() == Sensor.TYPE_PROXIMITY) {
+            detectProximityWave(event.values[0]);
+        }
     }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
     }
 
-    private void detectWave(float xAxis) {
-        if (Math.abs(xAxis) < WAVE_THRESHOLD) {
-            return;
-        }
+    /**
+     * Detect hand wave using proximity sensor.
+     * When hand comes near (value < max) then moves away (value >= max),
+     * that counts as one wave => toggle flashlight.
+     */
+    private void detectProximityWave(float distance) {
+        float maxRange = proximitySensor != null ? proximitySensor.getMaximumRange() : 5f;
+        boolean isNear = distance < maxRange;
         long now = System.currentTimeMillis();
-        if ((now - lastWavePeak) < 130L) {
-            return;
-        }
-        lastWavePeak = now;
-        int direction = xAxis > 0f ? 1 : -1;
 
-        if (waveWindowStart == 0L || (now - waveWindowStart) > 1900L) {
-            waveWindowStart = now;
-            waveSwitches = 0;
-            waveDirection = direction;
-            return;
-        }
+        if (isNear) {
+            // Hand is near the screen
+            if (!proxNear) {
+                proxNear = true;
+                tvProximityState.setText("Proximity: NEAR (hand detected)");
+                tvProximityState.setTextColor(ContextCompat.getColor(this, R.color.matrix_green));
+                pulseGestureLabel();
+            }
+        } else {
+            // Hand moved away - if it was near before, this is a complete wave
+            if (proxNear) {
+                proxNear = false;
+                tvProximityState.setText("Proximity: FAR (wave complete)");
+                tvProximityState.setTextColor(ContextCompat.getColor(this, R.color.media_cyan));
 
-        if (direction != waveDirection) {
-            waveDirection = direction;
-            waveSwitches++;
-            pulseGestureLabel();
-            if (waveSwitches >= 2 && (now - lastWaveTrigger) > 1200L) {
-                lastWaveTrigger = now;
-                waveSwitches = 0;
-                waveWindowStart = 0L;
-                tvGestureState.setText("WAVE -> TOGGLE LIGHT");
-                toggleLight("gesture wave");
+                // Debounce: at least 800ms between toggles
+                if ((now - lastProxToggle) > 800L) {
+                    lastProxToggle = now;
+                    tvGestureState.setText("WAVE -> TOGGLE FLASH");
+                    toggleFlash("proximity wave");
+                    pulseGestureLabel();
+                }
             }
         }
     }
@@ -685,14 +734,56 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 faceDownStart = 0L;
                 lastNightGuardTrigger = now;
                 triggerNightGuard();
+                lockScreenIfAllowed();
             }
         } else {
             faceDownStart = 0L;
         }
     }
 
+    private void lockScreenIfAllowed() {
+        if (devicePolicyManager == null || adminComponent == null) {
+            appendLog("Device admin not available on this device.");
+            return;
+        }
+
+        if (devicePolicyManager.isAdminActive(adminComponent)) {
+            // Admin is active – lock the screen immediately
+            devicePolicyManager.lockNow();
+            tvGestureState.setText("FACE DOWN -> SCREEN OFF");
+            pulseGestureLabel();
+            appendLog("Screen locked via Device Admin.");
+        } else {
+            // Request device admin permission every time until granted
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    "Enable device admin to allow face-down screen lock.");
+            startActivityForResult(intent, REQ_DEVICE_ADMIN);
+            appendLog("Requesting Device Admin permission for screen lock.");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_DEVICE_ADMIN) {
+            if (devicePolicyManager != null && devicePolicyManager.isAdminActive(adminComponent)) {
+                appendLog("Device Admin enabled! Face-down will now lock screen.");
+                // Lock immediately since the face-down gesture was already detected
+                devicePolicyManager.lockNow();
+            } else {
+                appendLog("Device Admin was not enabled. Screen lock won't work.");
+            }
+        }
+    }
+
     private void triggerNightGuard() {
-        lightOn = false;
+        // Turn off flash if it's on
+        if (flashOn) {
+            flashOn = false;
+            setFlashlight(false);
+        }
         fanOn = false;
         tvOn = false;
         volumePercent = 12;
@@ -703,7 +794,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             mediaPlaying = false;
         }
 
-        updateLightUI("Night Guard");
+        updateFlashUI("Night Guard");
         updateFanButton();
         updateTvButton();
         updateVolumeUI("Night Guard");
@@ -715,10 +806,26 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         dispatchCommand("SCENE_NIGHT_GUARD", "creative macro");
     }
 
-    private void toggleLight(String source) {
-        lightOn = !lightOn;
-        updateLightUI(source);
-        dispatchCommand(lightOn ? "LIGHT_ON" : "LIGHT_OFF", source);
+    private void toggleFlash(String source) {
+        flashOn = !flashOn;
+        setFlashlight(flashOn);
+        updateFlashUI(source);
+        dispatchCommand(flashOn ? "FLASH_ON" : "FLASH_OFF", source);
+    }
+
+    /**
+     * Controls the real phone flashlight (camera flash LED).
+     */
+    private void setFlashlight(boolean on) {
+        if (cameraManager == null || cameraId == null) {
+            appendLog("Flashlight not available on this device.");
+            return;
+        }
+        try {
+            cameraManager.setTorchMode(cameraId, on);
+        } catch (CameraAccessException e) {
+            appendLog("Flash error: " + e.getMessage());
+        }
     }
 
     private void toggleFan() {
@@ -733,24 +840,23 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         dispatchCommand(tvOn ? "TV_ON" : "TV_OFF", "manual tv");
     }
 
-    private void updateLightUI(String source) {
-        String value = lightOn ? "ON" : "OFF";
-        tvLightState.setText("Light: " + value + "  [" + source + "]");
-        tvLightState.setTextColor(ContextCompat.getColor(this, lightOn ? R.color.matrix_green : R.color.matrix_green_dim));
-        btnLightManual.setText(lightOn ? "FORCE LIGHT OFF" : "FORCE LIGHT ON");
+    private void updateFlashUI(String source) {
+        String value = flashOn ? "ON" : "OFF";
+        tvLightState.setText("Flash: " + value + "  [" + source + "]");
+        tvLightState.setTextColor(ContextCompat.getColor(this, flashOn ? R.color.matrix_green : R.color.matrix_green_dim));
+        btnLightManual.setText(flashOn ? "FORCE FLASH OFF" : "FORCE FLASH ON");
 
-        // Visual bulb indicator
-        lightBulbIcon.setBackgroundResource(lightOn ? R.drawable.light_bulb_on : R.drawable.light_bulb_off);
-        tvLightOnOff.setText(lightOn ? "ON" : "OFF");
-        tvLightOnOff.setTextColor(ContextCompat.getColor(this,
-                lightOn ? R.color.light_on_glow : R.color.matrix_green_dim));
+        // Update flash icon and label
+        tvFlashOnOff.setText(flashOn ? "ON" : "OFF");
+        tvFlashOnOff.setTextColor(ContextCompat.getColor(this,
+                flashOn ? R.color.light_on_glow : R.color.matrix_green_dim));
 
-        // Animate the bulb icon on state change
-        lightBulbIcon.animate()
-                .scaleX(lightOn ? 1.15f : 0.9f)
-                .scaleY(lightOn ? 1.15f : 0.9f)
+        // Animate the flash icon on state change
+        tvFlashIcon.animate()
+                .scaleX(flashOn ? 1.25f : 0.9f)
+                .scaleY(flashOn ? 1.25f : 0.9f)
                 .setDuration(200L)
-                .withEndAction(() -> lightBulbIcon.animate()
+                .withEndAction(() -> tvFlashIcon.animate()
                         .scaleX(1f)
                         .scaleY(1f)
                         .setDuration(400L)
@@ -759,20 +865,20 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 .start();
 
         // Animate the ON/OFF label
-        tvLightOnOff.animate()
+        tvFlashOnOff.animate()
                 .scaleX(1.2f)
                 .scaleY(1.2f)
                 .setDuration(150L)
-                .withEndAction(() -> tvLightOnOff.animate()
+                .withEndAction(() -> tvFlashOnOff.animate()
                         .scaleX(1f)
                         .scaleY(1f)
                         .setDuration(300L)
                         .start())
                 .start();
 
-        // Change card background tint subtly
-        lightBulbContainer.setBackgroundColor(ContextCompat.getColor(this,
-                lightOn ? R.color.light_on_bg : R.color.light_off_bg));
+        // Change container background
+        flashContainer.setBackgroundColor(ContextCompat.getColor(this,
+                flashOn ? R.color.light_on_bg : R.color.light_off_bg));
     }
 
     private void updateVolumeUI(String source) {
